@@ -70,7 +70,6 @@ def process_chat_file(file_contents):
             if match:
                 date, time, author, message = match.groups()
                 time,ampm = twelve_hr_convert(time)
-                print("Hello",time,ampm)
                 data.append({"Date": date, "Time": time,"AM/PM":ampm, "Author": author.strip(), "Message": message.strip()})
         except:
             continue
@@ -117,7 +116,7 @@ def process_chat_file(file_contents):
     message_df['DateTime'] = pd.to_datetime(message_df['Date'].dt.strftime('%Y-%m-%d') + ' ' + message_df['Time'] + ' ' + message_df['AM/PM'], format='mixed')
     message_df = message_df.sort_values(by='DateTime')
 
-    message_df["Date"] = message_df['Date'].apply(handle_date)
+    #message_df["Date"] = message_df['Date'].apply(handle_date)
 
 
     message_df['Response Time'] = pd.NaT
