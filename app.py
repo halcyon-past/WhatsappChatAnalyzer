@@ -97,6 +97,7 @@ def process_chat_file(file_contents):
 
 # Streamlit app
 def main():
+    st.set_page_config("Whatsapp Chat Analyzer",page_icon="📲",layout="centered")
     st.title("Chat Data Visualization")
     
     # Upload chat file
