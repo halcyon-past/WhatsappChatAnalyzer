@@ -5,7 +5,7 @@ matplotlib==3.7.1
 seaborn==0.12.2
 wordcloud==1.8.2.2
 nltk==3.8.1
-emoji==2.2.0
+emojis==0.7.0
 numpy==1.24.2
 regex==2022.10.31
 Pillow==9.4.0
