@@ -1,0 +1,11 @@
+streamlit==1.21.0
+pandas==1.5.3
+plotly==5.13.1
+matplotlib==3.7.1
+seaborn==0.12.2
+wordcloud==1.8.2.2
+nltk==3.8.1
+emoji==2.2.0
+numpy==1.24.2
+regex==2022.10.31
+Pillow==9.4.0
