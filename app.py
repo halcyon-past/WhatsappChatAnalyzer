@@ -11,16 +11,36 @@ from collections import Counter
 import plotly.graph_objs as go
 import numpy as np
 import re
+import zipfile
+import io
 
+def twelve_hr_convert(l):
+    hour, minute = l.split(":")
+    
+    hour = int(hour)
+    
+    # Determine am/pm
+    if hour < 12:
+        y = "am"
+    elif hour == 12:
+        y = "pm"
+    else:
+        hour -= 12
+        y = "pm"
+    
+    x = str(hour) if hour > 9 else f"0{hour}"
+    x+=f":{minute}"
+    return (x,y)
 
 @st.cache_data
 def process_chat_file(file_contents):
-    pattern = r"(\d+\/\d+\/\d+), (\d+:\d+\s(am|pm)) \- ([^\:]*):(.*)"
+    pattern1 = r"(\d+\/\d+\/\d+), (\d+:\d+\s(am|pm)) \- ([^\:]*):(.*)"
+    pattern2 = r"(\d+\/\d+\/\d+), (\d+:\d+) \- ([^\:]*):(.*)"
     data = []
 
     for line in file_contents.split("\n"):
         # Match the line with the pattern
-        match = re.match(pattern, line)
+        match = re.match(pattern1, line)
         try:
             if match:
                 date, time, ampm, author, message = match.groups()
@@ -29,6 +49,18 @@ def process_chat_file(file_contents):
                 if "pm" in time:
                     time=time.replace("\u202fpm","")
                 data.append({"Date": date, "Time": time.replace(r"\u202f",""),"AM/PM":ampm, "Author": author.strip(), "Message": message.strip()})
+        except:
+            continue
+    
+    for line in file_contents.split("\n"):
+        # Match the line with the pattern
+        match = re.match(pattern2, line)
+        try:
+            if match:
+                date, time, author, message = match.groups()
+                time,ampm = twelve_hr_convert(time)
+                print("Hello",time,ampm)
+                data.append({"Date": date, "Time": time,"AM/PM":ampm, "Author": author.strip(), "Message": message.strip()})
         except:
             continue
 
@@ -41,8 +73,11 @@ def process_chat_file(file_contents):
 
     df["Emoji"] = df["Message"].apply(split_count)
 
-    image_messages_df = df[df["Message"] == '<Media omitted>']
-    message_df=df.drop(image_messages_df.index)
+    media_messages_df = df[df["Message"] == '<Media omitted>']
+    message_df=df.drop(media_messages_df.index)
+
+    null_messages_df = df[df["Message"] == 'null']
+    message_df=message_df.drop(null_messages_df.index)
 
     message_df["Date"] = pd.to_datetime(message_df.Date)
 
@@ -68,10 +103,12 @@ def process_chat_file(file_contents):
     emoji_df = pd.DataFrame(emoji_dict).rename(columns={0: "emoji", 1: "count"})
 
     # Combine 'Date' and 'Time' columns into 'DateTime'
-    message_df['DateTime'] = pd.to_datetime(message_df['Date'].dt.strftime('%Y-%m-%d') + ' ' + message_df['Time'] + ' ' + message_df['AM/PM'], format='%Y-%m-%d %I:%M %p')
+    message_df['DateTime'] = pd.to_datetime(message_df['Date'].dt.strftime('%Y-%m-%d') + ' ' + message_df['Time'] + ' ' + message_df['AM/PM'], format='mixed')
     message_df = message_df.sort_values(by='DateTime')
 
-    # Create 'Response Time' column
+    message_df["Date"] = pd.to_datetime(message_df["Date"]).dt.strftime("%y-%m-%d")
+
+
     message_df['Response Time'] = pd.NaT
 
     last_message_time = {}
@@ -95,23 +132,54 @@ def process_chat_file(file_contents):
     
     return message_df, message_df, emoji_df, emoji_author_df
 
+#Extract text file from zip archive
+def extract_text_file(uploaded_file):
+    if uploaded_file is not None:
+        try:
+            # Read the contents of the uploaded file
+            uploaded_file_bytes = uploaded_file.read()
+
+            # Create a ZipFile object from the file contents
+            zip_file = zipfile.ZipFile(io.BytesIO(uploaded_file_bytes))
+
+            # Extract the text file from the zip archive
+            text_file_name = [name for name in zip_file.namelist() if name.endswith(".txt")]
+            if text_file_name:
+                text_file_data = zip_file.read(text_file_name[0])
+                return text_file_data.decode("utf-8")
+            else:
+                return "No text file found in the zip archive."
+        except Exception as e:
+            return f"Error occurred: {str(e)}"
+    else:
+        return "No file uploaded."
+
 # Streamlit app
 def main():
     st.set_page_config("Whatsapp Chat Analyzer",page_icon="📲",layout="centered")
     st.title("Chat Data Visualization")
     
     # Upload chat file
-    uploaded_file = st.file_uploader("Upload a chat file", type="txt")
+    uploaded_file = st.file_uploader("Upload a chat file")
     
     if uploaded_file is not None:
-
-        file_contents = uploaded_file.read().decode("utf-8")
-        # Process the chat file
-        df, message_df, emoji_df, emoji_author_df = process_chat_file(file_contents)
+        file_extension = uploaded_file.name.split(".")[-1]
+        if file_extension == "txt":
+            file_contents = uploaded_file.read().decode("utf-8")
+        elif file_extension == "zip":
+            file_contents = extract_text_file(uploaded_file)
+            with open("output.txt","w",encoding="utf-8") as f:
+                f.write(file_contents)
+            #st.write(file_contents)
+            #return
+        else:
+            st.error("Please upload a .txt or .zip file")
         
+        df, message_df, emoji_df, emoji_author_df = process_chat_file(file_contents)
+
         # Display basic information
         st.header("Basic Information (First 20 Conversations)")
-        st.write(df.tail(20))
+        st.write(df.head(20))
 
         st.header("Author Stats")
         l = message_df.Author.unique()
@@ -143,12 +211,12 @@ def main():
 
         # Top 10 days with most messages
         st.header("Top 10 Days With Most Messages")
-        df['Date'] = pd.to_datetime(df['Date'], format='%m/%d/%y', errors='coerce')
-        messages_per_day = df.groupby(df['Date'].dt.date).size().reset_index(name='Messages')
+        df['DateTime'] = pd.to_datetime(df['DateTime'], format='%m/%d/%y', errors='coerce')
+        messages_per_day = df.groupby(df['DateTime'].dt.date).size().reset_index(name='Messages')
         messages_per_day = messages_per_day.sort_values(by='Messages', ascending=False)
         top_days = messages_per_day.head(10)
         trace = go.Bar(
-            x=top_days['Date'],
+            x=top_days['DateTime'],
             y=top_days['Messages'],
             marker=dict(
                 color='rgba(58, 71, 80, 0.6)',
@@ -191,7 +259,7 @@ def main():
         # Display message distribution by day
         st.header("Message Distribution by Day")
         day_df = pd.DataFrame(message_df["Message"])
-        day_df['day_of_date'] = message_df['Date'].dt.weekday.astype(int)
+        day_df['day_of_date'] = message_df['DateTime'].dt.weekday.astype(int)
         day_df['day_of_date'] = day_df["day_of_date"].apply(lambda i: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"][int(i)])
         day_df["messagecount"] = 1
         day = day_df.groupby("day_of_date").sum()
