@@ -14,6 +14,17 @@ import re
 import zipfile
 import io
 
+def handle_date(date_str):
+    try:
+        # Try converting to datetime
+        return pd.to_datetime(date_str)
+    except ValueError:
+        # Handle incompatible format (e.g., "0 days 00:04:00")
+        # Extract time part if desired
+        time_part = date_str.split()[2]
+        return pd.to_timedelta(time_part)
+
+
 def twelve_hr_convert(l):
     hour, minute = l.split(":")
     
@@ -106,7 +117,7 @@ def process_chat_file(file_contents):
     message_df['DateTime'] = pd.to_datetime(message_df['Date'].dt.strftime('%Y-%m-%d') + ' ' + message_df['Time'] + ' ' + message_df['AM/PM'], format='mixed')
     message_df = message_df.sort_values(by='DateTime')
 
-    message_df["Date"] = pd.to_datetime(message_df["Date"]).dt.strftime("%y-%m-%d")
+    message_df["Date"] = message_df['Date'].apply(handle_date)
 
 
     message_df['Response Time'] = pd.NaT
@@ -168,10 +179,6 @@ def main():
             file_contents = uploaded_file.read().decode("utf-8")
         elif file_extension == "zip":
             file_contents = extract_text_file(uploaded_file)
-            with open("output.txt","w",encoding="utf-8") as f:
-                f.write(file_contents)
-            #st.write(file_contents)
-            #return
         else:
             st.error("Please upload a .txt or .zip file")
         
