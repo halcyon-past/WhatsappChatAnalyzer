@@ -2,6 +2,9 @@
 
 This project is a Streamlit application that allows you to analyze WhatsApp chat data. It provides various visualizations and insights into the chat, including basic information, author stats, emoji distribution, emoji usage by author, top days with the most messages, message distribution by day, and a word cloud.
 
+## Live Link
+[Check Out Live](https://whatsapp-chat-69.streamlit.app/)
+
 ## Features
 
 - **Basic Information**: Displays the first 20 conversations from the chat.
